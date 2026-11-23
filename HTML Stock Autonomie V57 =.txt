@@ -1,0 +1,170 @@
+HTML Stock Autonomie V57 = 
+VAR NbJours = CALCULATE ( DISTINCTCOUNT ( 'Stock Carburant 11'[Date] ) )
+
+VAR Base1 =
+    ADDCOLUMNS (
+        VALUES ( 'Stock Carburant 11'[Type] ),
+        "cCouleur",
+            SWITCH ( 'Stock Carburant 11'[Type],
+                "GASOIL", "#F5B800", "GASOIL+", "#10B981",
+                "SUPER", "#3B82F6", "SUPER+", "#A78BFA", "#94A3B8" ),
+        "cComptable",
+            VAR d = CALCULATE ( MAX ( 'Stock Carburant 11'[Date] ) )
+            RETURN CALCULATE ( SUM ( 'Stock Carburant 11'[Stock_L] ), 'Stock Carburant 11'[Date] = d ),
+        "cReel",    CALCULATE ( MAX ( 'Stock Carburant 11'[Stock_Reel_Mois] ) ),
+        "cLitres",  CALCULATE ( SUM ( 'Stock Carburant 11'[Sorties_L] ) ),
+        "cDernier", CALCULATE ( MAX ( 'Stock Carburant 11'[Date] ) )
+    )
+VAR Base2 =
+    ADDCOLUMNS (
+        Base1,
+        "cStock", IF ( NOT ISBLANK ( [cReel] ), [cReel], [cComptable] ),
+        "cMoy",   DIVIDE ( [cLitres], NbJours )
+    )
+VAR Base =
+    ADDCOLUMNS ( Base2, "cAut", DIVIDE ( [cStock], [cMoy], 9999 ) )
+
+VAR TotLitres = SUMX ( Base, [cLitres] )
+VAR TotStock  = SUMX ( Base, [cStock] )
+VAR NbCrit    = COUNTROWS ( FILTER ( Base, [cAut] < 3 ) )
+
+VAR Base4 =
+    ADDCOLUMNS (
+        Base,
+        "cId",    RANKX ( Base, [Type], , ASC, DENSE ),
+        "cEc",    IF ( ISBLANK ( [cReel] ), BLANK (), ROUND ( [cReel] - [cComptable], 2 ) ),
+        "cCoul",  IF ( [cAut] < 3, "#FF6B6B", IF ( [cAut] < 7, "#FFB020", "#34D399" ) ),
+        "cBgSt",  IF ( [cAut] < 3, "rgba(255,107,107,.20)", IF ( [cAut] < 7, "rgba(255,176,32,.20)", "rgba(52,211,153,.20)" ) ),
+        "cEtat",  IF ( [cAut] < 3, "CRITIQUE", IF ( [cAut] < 7, "A SURVEILLER", "SECURISE" ) ),
+        "cPct",   MAX ( MIN ( DIVIDE ( [cAut], 10 ), 1 ), 0.07 ) * 100,
+        "cTxtJ",  IF ( [cAut] >= 99, "99+", IF ( [cAut] < 1, FORMAT ( ROUND ( [cAut] * 24, 0 ), "0" ), FORMAT ( [cAut], "0.0", "fr-FR" ) ) ),
+        "cUnit",  IF ( [cAut] < 1, "HEURES", "JOURS" ),
+        "cFirst", IF ( [cAut] = MINX ( Base, [cAut] ), 1, 0 ),
+        "cPart",  FORMAT ( DIVIDE ( [cLitres], TotLitres ), "0.0%", "fr-FR" ),
+        "cRupt",  IF ( [cAut] >= 99, "&gt; 99 j", FORMAT ( [cDernier] + INT ( [cAut] ), "dd/mm", "fr-FR" ) )
+    )
+
+VAR Css =
+    "<style>
+    html,body{margin:0;padding:0;height:100%;width:100%;overflow:hidden;background:transparent}
+    .w{position:fixed;top:0;right:0;bottom:0;left:0;box-sizing:border-box;width:100%;height:100%;display:flex;flex-direction:column;border-radius:14px;background:radial-gradient(circle at 12% 0%,#27334D 0%,#141C2E 48%,#0A0F1C 100%);border:2px solid #F5B800;font-family:'Bahnschrift','Segoe UI',Arial,sans-serif;font-size:clamp(10px,min(1.9vw,4.2vh),19px);color:#FFFFFF;overflow:hidden}
+    .w>input{display:none}
+    .top{display:flex;align-items:center;justify-content:space-between;gap:.6em;padding:.6em .85em;background:linear-gradient(90deg,#F5B800 0%,#FFD04A 100%)}
+    .ttl{font-weight:900;letter-spacing:.12em;font-size:.98em;color:#111827;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .ttl span{color:#3B3000;font-weight:700;margin-left:.6em;letter-spacing:.06em;font-size:.78em}
+    .chips{display:flex;gap:.5em;align-items:center}
+    .chip{font-size:.76em;font-weight:900;letter-spacing:.06em;padding:.28em .75em;border-radius:2em;background:#111827;border:1.5px solid #111827;color:#FFFFFF;white-space:nowrap}
+    .al{animation:blink 1.5s ease-in-out infinite}
+    @keyframes blink{0%{box-shadow:0 0 0 0 rgba(255,90,95,.75)}60%{box-shadow:0 0 0 .45em rgba(255,90,95,0)}100%{box-shadow:0 0 0 0 rgba(255,90,95,0)}}
+    .cols{flex:1;min-height:0;display:flex;gap:.55em;padding:.65em}
+    .col{position:relative;flex:1;min-width:0;border-radius:1em;border:1px solid #3A4766;overflow:hidden;cursor:pointer;background:repeating-linear-gradient(180deg,rgba(255,255,255,.05) 0,rgba(255,255,255,.05) 1px,transparent 1px,transparent 10%),linear-gradient(180deg,#1F2B45,#0E1524);transition:flex .6s cubic-bezier(.2,.8,.2,1),border-color .3s ease,box-shadow .3s ease}
+    .col:hover{border-color:#F5B800;box-shadow:0 0 14px rgba(245,184,0,.35)}
+    .lq{position:absolute;left:0;right:0;bottom:0;background:var(--c);opacity:.6;animation:fill 1.5s cubic-bezier(.2,.8,.2,1) both}
+    @keyframes fill{from{height:0}}
+    .lb{position:absolute;left:0;right:0;top:0;bottom:0;overflow:hidden;background:linear-gradient(180deg,rgba(255,255,255,.22),rgba(0,0,0,.16))}
+    .lb i{position:absolute;bottom:0;width:.5em;height:.5em;border-radius:50%;background:rgba(255,255,255,.7);animation:rise 4.5s ease-in infinite}
+    .lb i:nth-child(1){left:18%}
+    .lb i:nth-child(2){left:52%;width:.32em;height:.32em;animation-delay:1.4s}
+    .lb i:nth-child(3){left:80%;animation-delay:2.6s}
+    @keyframes rise{0%{transform:translateY(0);opacity:0}20%{opacity:.9}100%{transform:translateY(-7em);opacity:0}}
+    .wv{position:absolute;left:0;top:-.8em;width:200%;height:1em;opacity:.7}
+    .wv path{fill:var(--c)}
+    .w1{animation:wave 5s linear infinite}
+    .w2{top:-.6em;opacity:.4;animation:wave 8s linear infinite reverse}
+    @keyframes wave{to{transform:translateX(-50%)}}
+    .th{position:absolute;left:0;right:0;border-top:1px dashed rgba(255,255,255,.4);z-index:1;pointer-events:none}
+    .th span{position:absolute;right:.5em;top:.15em;font-size:.64em;font-weight:800;color:#FFFFFF;opacity:.8}
+    .t3{bottom:30%}
+    .t7{bottom:70%}
+    .in{position:relative;z-index:2;box-sizing:border-box;height:100%;padding:.65em;display:flex;flex-direction:column;gap:.45em}
+    .nm{font-weight:900;letter-spacing:.05em;font-size:1.1em;color:#FFFFFF;white-space:nowrap;text-shadow:0 1px 4px rgba(0,0,0,.7)}
+    .bg{flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+    .bg b{font-size:2.5em;font-weight:900;line-height:1;color:#FFFFFF;text-shadow:0 2px 8px rgba(0,0,0,.65);transition:font-size .6s cubic-bezier(.2,.8,.2,1)}
+    .bg small{font-size:.72em;letter-spacing:.16em;font-weight:800;color:#F3F4F6;margin-top:.15em;text-shadow:0 1px 4px rgba(0,0,0,.7)}
+    .st{margin-top:.5em;font-size:.66em;font-weight:900;letter-spacing:.07em;padding:.25em .75em;border-radius:2em;border:1.5px solid;white-space:nowrap;background-color:#0B1120}
+    .dt{display:none;grid-template-columns:repeat(3,1fr);gap:.35em}
+    .k{background:rgba(8,12,24,.8);border:1px solid rgba(255,255,255,.16);border-radius:.6em;padding:.3em .55em;display:flex;flex-direction:column;gap:.05em;min-width:0}
+    .k small{font-size:.62em;letter-spacing:.06em;color:#F5B800;font-weight:800;white-space:nowrap}
+    .k b{font-size:1.05em;font-weight:900;color:#FFFFFF;white-space:nowrap}
+    .k em{font-style:normal;font-size:.64em;color:#CBD5E1;margin-left:.2em;font-weight:700}
+    .ft{background:linear-gradient(90deg,#F5B800,#FFD04A);border-radius:.6em;padding:.32em .6em;display:flex;flex-direction:column;gap:.05em;min-width:0}
+    .ft small{font-size:.62em;letter-spacing:.06em;color:#3B3000;font-weight:900;white-space:nowrap}
+    .ft b{font-size:1.2em;font-weight:900;color:#111827;white-space:nowrap}
+    .ft em{font-style:normal;font-size:.64em;color:#3B3000;margin-left:.2em;font-weight:800}
+    </style>"
+
+VAR Sel =
+    "<style>" &
+    CONCATENATEX (
+        Base4,
+        "#p" & [cId] & ":checked~.cols .c" & [cId] & "{flex:3.4;border-color:#F5B800;box-shadow:0 0 18px rgba(245,184,0,.45)}"
+            & "#p" & [cId] & ":checked~.cols .c" & [cId] & " .dt{display:grid}"
+            & "#p" & [cId] & ":checked~.cols .c" & [cId] & " .bg b{font-size:4em}",
+        ""
+    ) & "</style>"
+
+VAR Inputs =
+    CONCATENATEX (
+        Base4,
+        "<input type='radio' name='p' id='p" & [cId] & "'" & IF ( [cFirst] = 1, " checked", "" ) & ">",
+        ""
+    )
+
+VAR Cols =
+    CONCATENATEX (
+        Base4,
+        VAR PillCoul = IF ( [cEc] > 0, "#34D399", IF ( [cEc] < 0, "#FF6B6B", "#CBD5E1" ) )
+        VAR PillTxt  =
+            IF ( ISBLANK ( [cEc] ), "—",
+                IF ( [cEc] > 0, "+", IF ( [cEc] < 0, "−", "" ) )
+                    & FORMAT ( ABS ( [cEc] ), "#,0.00", "fr-FR" )
+                    & IF ( [cEc] > 0, " BONI", IF ( [cEc] < 0, " MALI", " OK" ) ) )
+        RETURN
+            "<label for='p" & [cId] & "' class='col c" & [cId] & "'>
+               <div class='lq' style='height:" & FORMAT ( [cPct], "0.0", "en-US" ) & "%;--c:" & [cCouleur] & "'>
+                 <svg class='wv w1' viewBox='0 0 200 10' preserveAspectRatio='none'><path d='M0,5 Q25,0 50,5 T100,5 T150,5 T200,5 V10 H0Z'/></svg>
+                 <svg class='wv w2' viewBox='0 0 200 10' preserveAspectRatio='none'><path d='M0,5 Q25,10 50,5 T100,5 T150,5 T200,5 V10 H0Z'/></svg>
+                 <div class='lb'><i></i><i></i><i></i></div>
+               </div>
+               <div class='th t3'><span>3 j</span></div>
+               <div class='th t7'><span>7 j</span></div>
+               <div class='in'>
+                 <span class='nm'>" & [Type] & "</span>
+                 <div class='bg'>
+                   <b>" & [cTxtJ] & "</b>
+                   <small>" & [cUnit] & "</small>
+                   <span class='st' style='color:" & [cCoul] & ";border-color:" & [cCoul] & "'>" & [cEtat] & "</span>
+                 </div>
+                 <div class='dt'>
+                   <div class='k'><small>ÉCART</small><b style='color:" & PillCoul & "'>" & PillTxt & "</b></div>
+                   <div class='k'><small>COMPTABLE</small><b>" & FORMAT ( [cComptable], "#,0", "fr-FR" ) & "<em>L</em></b></div>
+                   <div class='k'><small>SORTIES MOIS</small><b>" & FORMAT ( [cLitres], "#,0", "fr-FR" ) & "<em>L</em></b></div>
+                   <div class='k'><small>MOYENNE / JOUR</small><b>" & FORMAT ( [cMoy], "#,0", "fr-FR" ) & "<em>L</em></b></div>
+                   <div class='k'><small>RUPTURE ESTIMÉE</small><b style='color:" & [cCoul] & "'>" & [cRupt] & "</b></div>
+                   <div class='k'><small>PART SORTIES</small><b>" & [cPart] & "</b></div>
+                 </div>
+                 <div class='ft'><small>STOCK RÉEL</small><b>" & FORMAT ( [cStock], "#,0", "fr-FR" ) & "<em>L</em></b></div>
+               </div>
+             </label>",
+        "",
+        [cAut], ASC
+    )
+
+VAR CritTxt =
+    IF ( NbCrit = 0, "AUCUN RISQUE",
+        NbCrit & IF ( NbCrit > 1, " PRODUITS CRITIQUES", " PRODUIT CRITIQUE" ) )
+VAR CritCoul = IF ( NbCrit = 0, "#34D399", "#FF6B6B" )
+
+RETURN
+    IF ( COUNTROWS ( Base ) = 0, BLANK (),
+        Css & Sel
+            & "<div class='w'>
+                 <div class='top'>
+                   <div class='ttl'>AUTONOMIE CARBURANT<span>STOCK RÉEL &amp; RISQUE DE RUPTURE</span></div>
+                   <div class='chips'>
+                     <span class='chip'>STOCK TOTAL " & FORMAT ( TotStock, "#,0", "fr-FR" ) & " L</span>
+                     <span class='chip" & IF ( NbCrit > 0, " al", "" ) & "' style='color:" & CritCoul & ";border-color:" & CritCoul & "'>" & CritTxt & "</span>
+                   </div>
+                 </div>"
+            & Inputs
+            & "<div class='cols'>" & Cols & "</div></div>" )
